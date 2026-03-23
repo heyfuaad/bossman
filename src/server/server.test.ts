@@ -816,8 +816,8 @@ describe('Server Integration Tests', () => {
       // Disconnect by aborting
       controller.abort();
 
-      // Wait for the server's close handler + setTimeout(100ms) to run
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Wait for the server's close handler + 2s grace period to run
+      await new Promise((resolve) => setTimeout(resolve, 2500));
 
       // Without keepAlive, process.exit SHOULD have been called
       expect(process.exit).toHaveBeenCalledWith(0);

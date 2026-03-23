@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
+import 'dotenv/config';
+
 import { Command } from 'commander';
 import React from 'react';
 import { simpleGit, type SimpleGit } from 'simple-git';
 
 import pkg from '../../package.json' with { type: 'json' };
+import { resolveAIConfig } from '../server/ai-config.js';
 import { startServer } from '../server/server.js';
 import { type DiffViewMode } from '../types/diff.js';
 import { DiffMode } from '../types/watch.js';
@@ -58,6 +61,9 @@ interface CliOptions {
   clean?: boolean;
   includeUntracked?: boolean;
   keepAlive?: boolean;
+  aiReview?: boolean;
+  aiModelClaude?: string;
+  aiModelGemini?: string;
 }
 
 const program = new Command();
@@ -89,6 +95,9 @@ program
   .option('--clean', 'start with a clean slate by clearing all existing comments')
   .option('--include-untracked', 'automatically include untracked files in diff')
   .option('--keep-alive', 'keep server running even after browser disconnects')
+  .option('--no-ai-review', 'disable automatic AI review')
+  .option('--ai-model-claude <model>', 'Claude model to use (key via ANTHROPIC_API_KEY)')
+  .option('--ai-model-gemini <model>', 'Gemini model to use (key via GEMINI_API_KEY)')
   .action(async (commitish: string, compareWith: string | undefined, options: CliOptions) => {
     try {
       let stdinDiff: string | undefined;
@@ -143,6 +152,7 @@ program
           mode: options.mode,
           clearComments: options.clean,
           keepAlive: options.keepAlive,
+          aiReviewConfig: resolveAIConfig(options),
         });
 
         console.log(`\n🚀 difit server started on ${url}`);
@@ -216,6 +226,8 @@ program
         process.exit(1);
       }
 
+      const aiReviewConfig = resolveAIConfig(options);
+
       const { url, port, isEmpty } = await startServer({
         targetCommitish,
         baseCommitish,
@@ -227,6 +239,7 @@ program
         keepAlive: options.keepAlive,
         diffMode: determineDiffMode(targetCommitish, compareWith),
         repoPath,
+        aiReviewConfig,
       });
 
       console.log(`\n🚀 difit server started on ${url}`);
@@ -238,6 +251,18 @@ program
 
       if (options.clean) {
         console.log('🧹 Starting with a clean slate - all existing comments will be cleared');
+      }
+
+      if (aiReviewConfig.autoReview && (aiReviewConfig.claude || aiReviewConfig.gemini)) {
+        const models = [
+          aiReviewConfig.claude ? 'Claude' : null,
+          aiReviewConfig.gemini ? 'Gemini' : null,
+        ]
+          .filter(Boolean)
+          .join(' + ');
+        console.log(`🤖 AI review enabled (${models})`);
+      } else if (aiReviewConfig.autoReview) {
+        console.log('⚠️  AI review: no API keys found (set ANTHROPIC_API_KEY or GEMINI_API_KEY)');
       }
 
       if (isEmpty) {

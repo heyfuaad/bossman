@@ -15,6 +15,7 @@ import { normalizeDiffViewMode } from '../utils/diffMode.js';
 import { resolveEditorOption } from '../utils/editorOptions.js';
 import { getFileExtension } from '../utils/fileUtils.js';
 
+import { AIReviewOrchestrator } from './ai-review.js';
 import { FileWatcherService } from './file-watcher.js';
 import { GitDiffParser } from './git-diff.js';
 
@@ -38,6 +39,7 @@ interface ServerOptions {
   keepAlive?: boolean;
   diffMode?: DiffMode;
   repoPath?: string;
+  aiReviewConfig?: import('../types/ai-review.js').AIReviewConfig;
 }
 
 const GENERATED_STATUS_CACHE_TTL_MS = 60_000;
@@ -361,6 +363,111 @@ export async function startServer(
     }
   });
 
+  // Cache AI review events so page reloads don't re-run the review
+  let aiReviewCache: string[] | null = null;
+  let aiReviewRunning = false;
+  const pendingClients: import('express').Response[] = [];
+
+  // SSE endpoint for AI review
+  app.get('/api/ai-review', async (req, res) => {
+    if (!options.aiReviewConfig) {
+      res.status(400).json({ error: 'AI review not available' });
+      return;
+    }
+
+    const config = options.aiReviewConfig;
+    if (!config.claude?.apiKey && !config.gemini?.apiKey) {
+      res.status(400).json({ error: 'No AI API keys configured' });
+      return;
+    }
+
+    const forceRerun = req.query.rerun === 'true';
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+    });
+
+    // If we have cached results and this isn't a forced rerun, replay them
+    if (aiReviewCache && !forceRerun) {
+      for (const event of aiReviewCache) {
+        res.write(`data: ${event}\n\n`);
+      }
+      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // If a review is already running, hold this connection open and
+    // replay events as they arrive, then drain when the review completes.
+    if (aiReviewRunning) {
+      pendingClients.push(res);
+      req.on('close', () => {
+        const idx = pendingClients.indexOf(res);
+        if (idx !== -1) pendingClients.splice(idx, 1);
+      });
+      return;
+    }
+
+    aiReviewRunning = true;
+    const eventLog: string[] = [];
+
+    try {
+      // Ensure we have diff data
+      if (!diffDataCache) {
+        if (options.stdinDiff) {
+          diffDataCache = parser.parseStdinDiff(options.stdinDiff);
+        } else {
+          diffDataCache = await parser.parseDiff(
+            options.targetCommitish ?? '',
+            options.baseCommitish ?? '',
+            currentIgnoreWhitespace,
+          );
+        }
+      }
+
+      const orchestrator = new AIReviewOrchestrator(repositoryPath, config);
+
+      orchestrator.on('event', (event: import('../types/ai-review.js').AIReviewEvent) => {
+        const serialized = JSON.stringify(event);
+        eventLog.push(serialized);
+        // Send to the primary client
+        res.write(`data: ${serialized}\n\n`);
+        // Forward to any clients that connected mid-review
+        for (const client of pendingClients) {
+          client.write(`data: ${serialized}\n\n`);
+        }
+      });
+
+      if (options.stdinDiff) {
+        await orchestrator.startReviewFromDiff(diffDataCache, options.stdinDiff);
+      } else {
+        await orchestrator.startReview(
+          diffDataCache,
+          options.baseCommitish ?? 'HEAD^',
+          options.targetCommitish ?? 'HEAD',
+        );
+      }
+
+      // Cache the results for subsequent page loads
+      aiReviewCache = eventLog;
+    } finally {
+      aiReviewRunning = false;
+    }
+
+    const done = `data: ${JSON.stringify({ type: 'done' })}\n\n`;
+    res.write(done);
+    res.end();
+    // Drain and close any queued clients
+    for (const client of pendingClients) {
+      client.write(done);
+      client.end();
+    }
+    pendingClients.length = 0;
+  });
+
   app.post('/api/open-in-editor', async (req, res) => {
     if (options.stdinDiff) {
       res.status(400).json({ error: 'Open in editor is not available for stdin diff' });
@@ -479,6 +586,9 @@ export async function startServer(
       'Access-Control-Allow-Origin': '*',
     });
 
+    // Cancel any pending shutdown from a previous disconnect (e.g., page refresh)
+    app.emit('heartbeat-connected');
+
     // Send initial heartbeat
     res.write('data: connected\n\n');
 
@@ -494,8 +604,11 @@ export async function startServer(
         console.log('Client disconnected, but server is staying alive (--keep-alive)');
         console.log('Press Ctrl+C to stop the server');
       } else {
-        // Add a small delay to ensure any pending sendBeacon requests are processed
-        setTimeout(async () => {
+        // Delay before shutdown to allow page refreshes to reconnect.
+        // A refresh briefly disconnects the heartbeat SSE; if a new
+        // heartbeat connection arrives within the grace period, cancel
+        // the shutdown.
+        const shutdownTimer = setTimeout(async () => {
           console.log('Client disconnected, shutting down server...');
 
           // Stop file watcher
@@ -503,7 +616,12 @@ export async function startServer(
 
           outputFinalComments();
           process.exit(0);
-        }, 100);
+        }, 2000);
+
+        // If a new heartbeat connects before the timer fires, cancel shutdown
+        app.once('heartbeat-connected', () => {
+          clearTimeout(shutdownTimer);
+        });
       }
     });
   });

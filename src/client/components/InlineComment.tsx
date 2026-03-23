@@ -35,6 +35,7 @@ export function InlineComment({
   const [editMode, setEditMode] = useState<CommentEditMode>('edit');
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const isAIComment = comment.isAIGenerated === true;
   const hasSuggestionInEditedBody = hasSuggestionInBody(editedBody);
   const effectiveEditMode: CommentEditMode = hasSuggestionInEditedBody ? editMode : 'edit';
 
@@ -113,9 +114,11 @@ export function InlineComment({
   return (
     <div
       id={`comment-${comment.id}`}
-      className={`p-3 bg-github-bg-tertiary border border-yellow-600/50 rounded-md border-l-4 border-l-yellow-400 shadow-sm transition-all ${
-        onClick ? 'hover:shadow-md cursor-pointer' : ''
-      }`}
+      className={`p-3 bg-github-bg-tertiary border rounded-md border-l-4 shadow-sm transition-all ${
+        isAIComment
+          ? 'border-blue-600/50 border-l-blue-400'
+          : 'border-yellow-600/50 border-l-yellow-400'
+      } ${onClick ? 'hover:shadow-md cursor-pointer' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-2 gap-3">
@@ -130,6 +133,19 @@ export function InlineComment({
             {comment.file}:
             {Array.isArray(comment.line) ? `${comment.line[0]}-${comment.line[1]}` : comment.line}
           </span>
+          {comment.severity && (
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                comment.severity === 'critical'
+                  ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                  : comment.severity === 'important'
+                    ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                    : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+              }`}
+            >
+              {comment.severity}
+            </span>
+          )}
           {showAuthorBadge && comment.author && (
             <span className="inline-flex items-center rounded-full border border-github-border bg-github-bg-secondary px-2 py-0.5 text-[11px] font-medium text-github-text-primary">
               {comment.author}
@@ -199,20 +215,24 @@ export function InlineComment({
               >
                 {isCopied ? 'Copied!' : 'Copy Prompt'}
               </button>
-              <button
-                onClick={handleStartEdit}
-                className="text-xs p-1.5 bg-github-bg-tertiary text-github-text-secondary border border-github-border rounded hover:text-github-text-primary hover:bg-github-bg-primary transition-all"
-                title="Edit"
-              >
-                <Edit2 size={12} />
-              </button>
-              <button
-                onClick={handleRemove}
-                className="text-xs p-1.5 bg-github-bg-tertiary text-green-600 border border-github-border rounded hover:bg-green-500/10 hover:border-green-600 transition-all"
-                title="Resolve"
-              >
-                <Check size={12} />
-              </button>
+              {!isAIComment && (
+                <>
+                  <button
+                    onClick={handleStartEdit}
+                    className="text-xs p-1.5 bg-github-bg-tertiary text-github-text-secondary border border-github-border rounded hover:text-github-text-primary hover:bg-github-bg-primary transition-all"
+                    title="Edit"
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                  <button
+                    onClick={handleRemove}
+                    className="text-xs p-1.5 bg-github-bg-tertiary text-green-600 border border-github-border rounded hover:bg-green-500/10 hover:border-green-600 transition-all"
+                    title="Resolve"
+                  >
+                    <Check size={12} />
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>

@@ -11,6 +11,8 @@ import {
 } from '../types/diff';
 import { DEFAULT_DIFF_VIEW_MODE, normalizeDiffViewMode } from '../utils/diffMode';
 
+import { AIArchitecturePanel } from './components/AIArchitecturePanel';
+import { AIReviewStatus } from './components/AIReviewStatus';
 import { Checkbox } from './components/Checkbox';
 import { CommentsDropdown } from './components/CommentsDropdown';
 import { CommentsListModal } from './components/CommentsListModal';
@@ -26,6 +28,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { SparkleAnimation } from './components/SparkleAnimation';
 import { WordHighlightProvider } from './contexts/WordHighlightContext';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
+import { useAIReview } from './hooks/useAIReview';
 import { useDiffComments } from './hooks/useDiffComments';
 import { useExpandedLines, type MergedChunk } from './hooks/useExpandedLines';
 import { useFileWatch } from './hooks/useFileWatch';
@@ -35,6 +38,7 @@ import { useViewedFiles } from './hooks/useViewedFiles';
 import { useViewport } from './hooks/useViewport';
 import { hasMultipleCommentAuthors } from './utils/commentAuthors';
 import { getFileElementId } from './utils/domUtils';
+import { formatReviewPrompt } from './utils/formatReviewPrompt';
 import { findCommentPosition } from './utils/navigation/positionHelpers';
 import { resolveEventSourceUrl } from './utils/eventSourceUrl';
 
@@ -110,25 +114,30 @@ function App() {
   const { isMobile, isDesktop } = useViewport();
 
   // New diff-aware comment system
+  const { comments, addComment, removeComment, updateComment, clearAllComments, generatePrompt } =
+    useDiffComments(
+      diffData?.baseCommitish,
+      diffData?.targetCommitish,
+      diffData?.commit, // Using commit as currentCommitHash
+      undefined, // branchToHash map - could be populated from server data
+      diffData?.repositoryId, // Repository identifier for storage isolation
+    );
+
+  // AI Review
   const {
-    comments,
-    addComment,
-    removeComment,
-    updateComment,
-    clearAllComments,
-    generatePrompt,
-    generateAllCommentsPrompt,
-  } = useDiffComments(
-    diffData?.baseCommitish,
-    diffData?.targetCommitish,
-    diffData?.commit, // Using commit as currentCommitHash
-    undefined, // branchToHash map - could be populated from server data
-    diffData?.repositoryId, // Repository identifier for storage isolation
-  );
+    aiComments,
+    architectureComments: aiArchitectureComments,
+    isReviewing: isAIReviewing,
+    modelStates: aiModelStates,
+    rerunReview: rerunAIReview,
+  } = useAIReview(true);
+
+  // Merge user comments with AI comments for display
+  const allDiffComments = useMemo(() => [...comments, ...aiComments], [comments, aiComments]);
 
   const normalizedComments = useMemo<Comment[]>(
     () =>
-      comments.map((comment) => ({
+      allDiffComments.map((comment) => ({
         id: comment.id,
         file: comment.filePath,
         line:
@@ -140,8 +149,10 @@ function App() {
         author: comment.author,
         codeContent: comment.codeSnapshot?.content,
         side: comment.position.side,
+        severity: comment.severity,
+        isAIGenerated: comment.author === 'Claude' || comment.author === 'Gemini',
       })),
-    [comments],
+    [allDiffComments],
   );
   const commentsForServer = useMemo<Comment[]>(
     () =>
@@ -437,7 +448,17 @@ function App() {
   }, [setCommentTrigger]);
 
   const handleGeneratePrompt = useCallback(
-    (comment: Comment) => generatePrompt(comment.id),
+    (comment: Comment) => {
+      // Try user comments first
+      const userPrompt = generatePrompt(comment.id);
+      if (userPrompt) return userPrompt;
+
+      // For AI comments, format directly from the comment data
+      const line = Array.isArray(comment.line)
+        ? `${comment.line[0]}-${comment.line[1]}`
+        : comment.line;
+      return `${comment.file}:${line}\n${comment.body}`;
+    },
     [generatePrompt],
   );
 
@@ -666,7 +687,7 @@ function App() {
 
   const handleCopyAllComments = async () => {
     try {
-      const prompt = generateAllCommentsPrompt();
+      const prompt = formatReviewPrompt(aiComments, aiArchitectureComments, comments);
       await navigator.clipboard.writeText(prompt);
       setIsCopiedAll(true);
       setTimeout(() => setIsCopiedAll(false), 2000);
@@ -871,15 +892,25 @@ function App() {
                 isMobile ? 'gap-3' : 'gap-4'
               }`}
             >
-              {!isMobile && comments.length > 0 && (
-                <CommentsDropdown
-                  commentsCount={comments.length}
-                  isCopiedAll={isCopiedAll}
-                  onCopyAll={handleCopyAllComments}
-                  onDeleteAll={clearAllComments}
-                  onViewAll={() => setIsCommentsListOpen(true)}
-                />
-              )}
+              <AIReviewStatus
+                modelStates={aiModelStates}
+                isReviewing={isAIReviewing}
+                onRerun={rerunAIReview}
+              />
+              {!isMobile &&
+                (comments.length > 0 ||
+                  aiComments.length > 0 ||
+                  aiArchitectureComments.length > 0) && (
+                  <CommentsDropdown
+                    commentsCount={
+                      comments.length + aiComments.length + aiArchitectureComments.length
+                    }
+                    isCopiedAll={isCopiedAll}
+                    onCopyAll={handleCopyAllComments}
+                    onDeleteAll={clearAllComments}
+                    onViewAll={() => setIsCommentsListOpen(true)}
+                  />
+                )}
               <div className="flex flex-col gap-1 items-center">
                 <div className="text-xs relative">
                   {viewedFiles.size === diffData.files.length
@@ -1041,6 +1072,7 @@ function App() {
             ref={diffScrollContainerRef}
             className={`flex-1 overflow-y-auto ${showMobileCommentsBar ? 'pb-16' : ''}`}
           >
+            <AIArchitecturePanel comments={aiArchitectureComments} />
             {diffData.files.map((file, fileIndex) => {
               const fileComments = commentsByFile.get(file.path) ?? EMPTY_COMMENTS;
               const mergedChunks = mergedChunksByFile.get(file.path) ?? EMPTY_MERGED_CHUNKS;
@@ -1116,7 +1148,7 @@ function App() {
         {showMobileCommentsBar && (
           <div className="fixed bottom-0 left-0 right-0 z-20 bg-github-bg-secondary border-t border-github-border px-4 py-2 flex justify-end">
             <CommentsDropdown
-              commentsCount={comments.length}
+              commentsCount={comments.length + aiComments.length + aiArchitectureComments.length}
               isCopiedAll={isCopiedAll}
               onCopyAll={handleCopyAllComments}
               onDeleteAll={clearAllComments}

@@ -1,30 +1,30 @@
 {
-  "name": "difit",
-  "version": "3.1.17",
-  "description": "A lightweight command-line tool that spins up a local web server to display Git commit diffs in a GitHub-like Files changed view",
+  "name": "bossman",
+  "version": "0.1.0",
+  "description": "Local AI code review tool. Runs Claude and Gemini on your git diffs with full codebase context, renders findings inline in a GitHub-style viewer.",
   "keywords": [
+    "ai",
+    "ai-review",
+    "claude",
     "cli",
     "code-review",
     "diff",
-    "diff-viewer",
+    "gemini",
     "git",
-    "github",
-    "react",
-    "review",
-    "tailwind"
+    "review"
   ],
-  "homepage": "https://github.com/yoshiko-pg/difit",
+  "homepage": "https://github.com/heyfuaad/bossman",
   "bugs": {
-    "url": "https://github.com/yoshiko-pg/difit/issues"
+    "url": "https://github.com/heyfuaad/bossman/issues"
   },
   "license": "MIT",
   "author": "yoshiko-pg",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yoshiko-pg/difit.git"
+    "url": "https://github.com/heyfuaad/bossman.git"
   },
   "bin": {
-    "difit": "./dist/cli/index.js"
+    "bossman": "./dist/cli/index.js"
   },
   "files": [
     "dist",
@@ -59,15 +59,19 @@
     "perf:compare": "node scripts/compare-performance.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@floating-ui/react": "^0.27.16",
+    "@google/generative-ai": "^0.24.1",
     "@parcel/watcher": "^2.5.1",
     "commander": "^14.0.0",
     "diff": "^8.0.2",
+    "dotenv": "^17.3.1",
     "express": "^5.1.0",
     "ink": "^6.0.1",
     "lucide-react": "^0.577.0",
     "mermaid": "^11.13.0",
     "open": "^11.0.0",
+    "picomatch": "^4.0.4",
     "prism-react-renderer": "^2.4.1",
     "prismjs": "^1.30.0",
     "react": "^19.1.0",
@@ -85,6 +89,7 @@
     "@tsconfig/strictest": "^2.0.5",
     "@types/express": "^5.0.3",
     "@types/node": "^24.0.8",
+    "@types/picomatch": "^4.0.2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^5.0.0",
