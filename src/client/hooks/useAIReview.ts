@@ -22,7 +22,7 @@ interface ModelState {
 export interface ArchitectureComment {
   id: string;
   model: AIReviewModel;
-  severity: 'critical' | 'important' | 'improvement';
+  severity: 'critical' | 'important' | 'suggestion' | 'observation';
   title: string;
   body: string;
   relatedFiles?: string[];
@@ -43,7 +43,13 @@ const DEFAULT_MODEL_STATE: ModelState = {
 
 function findingToComment(finding: AIReviewFinding, model: AIReviewModel): DiffComment {
   const severityEmoji =
-    finding.severity === 'critical' ? '🔴' : finding.severity === 'important' ? '🟠' : '🟡';
+    finding.severity === 'critical'
+      ? '🔴'
+      : finding.severity === 'important'
+        ? '🟠'
+        : finding.severity === 'observation'
+          ? '🟢'
+          : '🟡';
 
   let body = `${severityEmoji} **${finding.title}**\n\n${finding.body}`;
 
@@ -72,6 +78,23 @@ function findingToComment(finding: AIReviewFinding, model: AIReviewModel): DiffC
   };
 }
 
+// Heuristic: if the body contains action-oriented language, the comment is likely
+// actionable. Otherwise it's praise/neutral and should be reclassified as observation.
+const ACTION_PATTERN =
+  /\b(consider|should|could|must|need to|recommend|suggest|avoid|instead|replace|rename|refactor|extract|move|change|fix|add|remove|ensure|validate|handle|missing|lacks?|risk|danger|bug|vulnerability|issue|problem|error)\b/i;
+
+function inferSeverity(
+  comment: AIReviewArchitectureComment,
+): AIReviewArchitectureComment['severity'] {
+  if (comment.severity === 'observation') return 'observation';
+  if (comment.severity === 'critical') return 'critical';
+
+  const hasAction = ACTION_PATTERN.test(comment.body) || ACTION_PATTERN.test(comment.title);
+  if (!hasAction) return 'observation';
+
+  return comment.severity;
+}
+
 function archCommentToState(
   comment: AIReviewArchitectureComment,
   model: AIReviewModel,
@@ -79,7 +102,7 @@ function archCommentToState(
   return {
     id: crypto.randomUUID(),
     model,
-    severity: comment.severity,
+    severity: inferSeverity(comment),
     title: comment.title,
     body: comment.body,
     relatedFiles: comment.relatedFiles,

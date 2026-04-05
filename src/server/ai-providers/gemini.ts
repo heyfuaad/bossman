@@ -23,7 +23,9 @@ const GEMINI_RESPONSE_SCHEMA: ResponseSchema = {
           severity: {
             type: SchemaType.STRING,
             format: 'enum',
-            enum: ['critical', 'important', 'improvement'],
+            enum: ['critical', 'important', 'suggestion', 'observation'],
+            description:
+              'critical=bugs/crashes, important=perf/logic issues, suggestion=specific change recommended, observation=praise or neutral note with NO change suggested',
           },
           title: { type: SchemaType.STRING },
           body: { type: SchemaType.STRING },
@@ -40,7 +42,9 @@ const GEMINI_RESPONSE_SCHEMA: ResponseSchema = {
           severity: {
             type: SchemaType.STRING,
             format: 'enum',
-            enum: ['critical', 'important', 'improvement'],
+            enum: ['critical', 'important', 'suggestion', 'observation'],
+            description:
+              'critical=bugs/crashes, important=perf/logic issues, suggestion=specific change recommended, observation=praise or neutral note with NO change suggested',
           },
           title: { type: SchemaType.STRING },
           body: { type: SchemaType.STRING },
@@ -83,7 +87,10 @@ export async function reviewWithGemini(
 
   let parsed: { findings: AIReviewFinding[]; architectureComments?: AIReviewArchitectureComment[] };
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(text) as {
+      findings: AIReviewFinding[];
+      architectureComments?: AIReviewArchitectureComment[];
+    };
   } catch {
     throw new Error(
       `Gemini returned invalid JSON. This can happen due to safety filters or output truncation. Raw response (first 200 chars): ${text.slice(0, 200)}`,

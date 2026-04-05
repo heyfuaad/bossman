@@ -27,15 +27,19 @@ High-level observations about the overall approach, design, or patterns. These a
 - Missing error handling strategies
 - Overall approach feedback (is this the right way to solve the problem?)
 - Suggestions for alternative approaches
+- Positive observations about well-executed patterns, good design decisions, or notable improvements
 
 ## Rules
 - Only comment on the actual changes shown in the diff
 - Do NOT comment on formatting, import ordering, or trivial style issues
-- Be concise and specific; each finding must be actionable
+- Be concise and specific
 - Categorize each finding/observation by severity:
   - critical: bugs, security vulnerabilities, data loss risks, crashes
   - important: performance issues, error handling gaps, logic errors, architectural concerns
-  - improvement: naming, readability, minor refactors, design suggestions`;
+  - suggestion: you are recommending a specific, concrete change (naming, readability, minor refactors, design)
+  - observation: the code is fine or good; you are noting a pattern, praising a decision, or making a neutral comment. NO change is being requested.
+
+IMPORTANT: The test for "suggestion" vs "observation" is simple: does your comment ask the author to change something? If yes, use "suggestion". If no, use "observation". Saying "this consolidation improves maintainability" is an observation. Saying "consider renaming X to Y" is a suggestion.`;
 
 export function buildSystemPrompt(conventions?: string): string {
   if (!conventions) {
@@ -106,7 +110,9 @@ export const AI_REVIEW_RESPONSE_SCHEMA = {
           },
           severity: {
             type: 'string' as const,
-            enum: ['critical', 'important', 'improvement'],
+            enum: ['critical', 'important', 'suggestion', 'observation'],
+            description:
+              'critical=bugs/crashes, important=perf/logic issues, suggestion=specific change recommended, observation=praise or neutral note with NO change suggested',
           },
           title: { type: 'string' as const, description: 'Short one-line summary of the finding' },
           body: {
@@ -133,7 +139,9 @@ export const AI_REVIEW_RESPONSE_SCHEMA = {
         properties: {
           severity: {
             type: 'string' as const,
-            enum: ['critical', 'important', 'improvement'],
+            enum: ['critical', 'important', 'suggestion', 'observation'],
+            description:
+              'critical=bugs/crashes, important=perf/logic issues, suggestion=specific change recommended, observation=praise or neutral note with NO change suggested',
           },
           title: { type: 'string' as const, description: 'Short one-line summary' },
           body: {

@@ -1,4 +1,4 @@
-export type AIReviewSeverity = 'critical' | 'important' | 'improvement';
+export type AIReviewSeverity = 'critical' | 'important' | 'suggestion' | 'observation';
 export type AIReviewModel = 'claude' | 'gemini';
 
 export interface AIReviewFinding {

@@ -140,7 +140,9 @@ export function InlineComment({
                   ? 'bg-red-500/15 text-red-400 border border-red-500/30'
                   : comment.severity === 'important'
                     ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
-                    : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                    : comment.severity === 'observation'
+                      ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                      : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
               }`}
             >
               {comment.severity}

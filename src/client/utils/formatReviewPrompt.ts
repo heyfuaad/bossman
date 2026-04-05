@@ -12,10 +12,11 @@ export function formatReviewPrompt(
     'The following issues were found during code review. For each finding, verify whether it is a legitimate issue by reading the relevant code. If it is legit, fix it. If it is not a real issue (false positive, already handled, or intentional), briefly explain why it does not need to be fixed.\n',
   );
 
-  // Architecture observations first (high-level context)
-  if (architectureComments.length > 0) {
+  // Architecture observations first (high-level context), excluding observations/praise
+  const actionableArchComments = architectureComments.filter((c) => c.severity !== 'observation');
+  if (actionableArchComments.length > 0) {
     parts.push('## Architecture Observations\n');
-    for (const comment of architectureComments) {
+    for (const comment of actionableArchComments) {
       const severity = comment.severity.toUpperCase();
       parts.push(`### [${severity}] ${comment.title}`);
       parts.push(comment.body);
@@ -35,7 +36,7 @@ export function formatReviewPrompt(
           ? comment.position.line
           : `${comment.position.line.start}-${comment.position.line.end}`;
       parts.push(`### ${comment.filePath}:${line}`);
-      const body = comment.body.replace(/^[🔴🟠🟡]\s*/, '');
+      const body = comment.body.replace(/^[🔴🟠🟡🟢]\s*/u, '');
       parts.push(body);
       parts.push('');
     }
