@@ -108,17 +108,19 @@ export class AIReviewOrchestrator extends EventEmitter {
       run: () => Promise<ReviewResult>;
     }> = [];
 
-    if (this.config.claude?.enabled !== false && this.config.claude?.apiKey) {
+    const claudeConfig = this.config.claude;
+    if (claudeConfig?.enabled !== false && claudeConfig?.apiKey) {
       providers.push({
         name: 'claude',
-        run: () => reviewWithClaude(context, this.config.claude!.apiKey, this.config.claude!.model),
+        run: () => reviewWithClaude(context, claudeConfig.apiKey, claudeConfig.model),
       });
     }
 
-    if (this.config.gemini?.enabled !== false && this.config.gemini?.apiKey) {
+    const geminiConfig = this.config.gemini;
+    if (geminiConfig?.enabled !== false && geminiConfig?.apiKey) {
       providers.push({
         name: 'gemini',
-        run: () => reviewWithGemini(context, this.config.gemini!.apiKey, this.config.gemini!.model),
+        run: () => reviewWithGemini(context, geminiConfig.apiKey, geminiConfig.model),
       });
     }
 
@@ -184,9 +186,9 @@ export class AIReviewOrchestrator extends EventEmitter {
     );
 
     // Log results summary
-    for (let i = 0; i < providers.length; i++) {
-      const result = results[i]!;
-      const provider = providers[i]!;
+    for (const [i, provider] of providers.entries()) {
+      const result = results[i];
+      if (!result) continue;
       if (result.status === 'fulfilled') {
         console.log(
           `  ${provider.name}: ${result.value.findings.length} findings, ${result.value.architectureComments.length} architecture comments`,
