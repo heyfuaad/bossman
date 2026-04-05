@@ -72,6 +72,15 @@ const resolveDisplayLabel = (
   const caret = value.endsWith('^');
   const baseValue = caret ? value.slice(0, -1) : value;
 
+  // Resolve HEAD (and HEAD only, not HEAD~2 etc.) to the current branch name
+  if (baseValue === 'HEAD') {
+    const currentBranch = options.branches.find((b) => b.current);
+    if (currentBranch) {
+      return caret ? `${currentBranch.name}^` : currentBranch.name;
+    }
+    return value;
+  }
+
   if (baseValue.startsWith('HEAD')) {
     return value;
   }
@@ -180,7 +189,7 @@ export function DiffQuickMenu({
 
     const baseLabel = resolveDisplayLabel(options, baseRevision, resolvedBaseRevision);
     const targetLabel = resolveDisplayLabel(options, targetRevision, resolvedTargetRevision);
-    return `${baseLabel}...${targetLabel}`;
+    return `${baseLabel} ← ${targetLabel}`;
   }, [options, baseRevision, targetRevision, resolvedBaseRevision, resolvedTargetRevision]);
 
   const mainBranch = useMemo(
@@ -284,7 +293,7 @@ export function DiffQuickMenu({
                 onClick={() => handleSelect('HEAD', '.')}
                 className={getItemClasses(isPresetActive('HEAD', '.'), false)}
               >
-                HEAD...Uncommitted
+                HEAD ← Uncommitted
               </button>
               {hasMainBranch && mainBranch && (
                 <>
@@ -292,7 +301,7 @@ export function DiffQuickMenu({
                     onClick={() => handleSelect(mainBranch.name, '.')}
                     className={getItemClasses(isPresetActive(mainBranch.name, '.'), false)}
                   >
-                    {mainBranch.name}...Uncommitted
+                    {mainBranch.name} ← Uncommitted
                   </button>
                 </>
               )}

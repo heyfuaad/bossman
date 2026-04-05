@@ -99,12 +99,12 @@ describe('DiffQuickMenu', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Revision menu:/ }));
 
-    expect(screen.getByRole('button', { name: 'HEAD...Uncommitted' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'main...Uncommitted' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'HEAD ← Uncommitted' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'main ← Uncommitted' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'HEAD' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'HEAD...Staging' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Staging...Working' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'main...HEAD' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'HEAD ← Staging' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Staging ← Working' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'main ← HEAD' })).not.toBeInTheDocument();
   });
 
   it('selects HEAD commit when HEAD quick preset is clicked', () => {

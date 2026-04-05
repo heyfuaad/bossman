@@ -959,8 +959,9 @@ function App() {
                     {diffData.commit.includes('...') ? (
                       <>
                         <span className="text-github-text-secondary font-medium">
-                          {diffData.commit.split('...')[0]}...
+                          {diffData.commit.split('...')[0]}
                         </span>
+                        <span className="text-github-text-secondary font-medium"> ← </span>
                         <span className="font-medium">{diffData.commit.split('...')[1]}</span>
                       </>
                     ) : (
